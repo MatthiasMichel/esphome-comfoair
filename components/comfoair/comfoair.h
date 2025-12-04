@@ -168,6 +168,9 @@ public:
       case 9:
         get_time_delay_();
         break;
+      case 10:
+        get_analog_inputs_();
+        break;
     }
 
     update_counter_++;
@@ -433,6 +436,26 @@ protected:
 
         if (enthalpy_temperature != nullptr) {
           enthalpy_temperature->publish_state((float) msg[0] / 2.0f - 20.0f);
+        }
+
+        break;
+      }
+      case RES_GET_ANALOG_INPUTS: {
+
+        if (analog_sensor1 != nullptr) {
+          analog_sensor1->publish_state((float) msg[0] * 10.0f / 255.0f);
+        }
+        
+        if (analog_sensor2 != nullptr) {
+          analog_sensor2->publish_state((float) msg[1] * 10.0f / 255.0f);
+        }
+        
+        if (analog_sensor3 != nullptr) {
+          analog_sensor3->publish_state((float) msg[2] * 10.0f / 255.0f);
+        }
+        
+        if (analog_sensor4 != nullptr) {
+          analog_sensor4->publish_state((float) msg[3] * 10.0f / 255.0f);
         }
 
         break;
@@ -843,6 +866,16 @@ protected:
     }
   }
 
+  void get_analog_inputs_() {
+    if (analog_sensor1 != nullptr ||
+        analog_sensor2 != nullptr ||
+        analog_sensor3 != nullptr ||
+        analog_sensor4 != nullptr) {
+      ESP_LOGD(TAG, "getting analog inputs");
+      write_command_(CMD_GET_ANALOG_INPUTS, nullptr, 0);
+    }
+  }
+
   void get_ventilation_level_() {
     ESP_LOGD(TAG, "getting ventilation level");
     write_command_(CMD_GET_VENTILATION_LEVEL, nullptr, 0);
@@ -883,7 +916,7 @@ protected:
   uint8_t data_[30];
   uint8_t data_index_{0};
   int8_t update_counter_{-4};
-  const int8_t num_update_counter_elements_{9};
+  const int8_t num_update_counter_elements_{10};
   uint8_t status_payload_[8]{0};
   bool status_payload_valid_{false};
   uint8_t current_unit_size_{0};
@@ -910,6 +943,10 @@ public:
   sensor::Sensor *return_air_temperature{nullptr};
   sensor::Sensor *exhaust_air_temperature{nullptr};
   sensor::Sensor *enthalpy_temperature{nullptr};
+  sensor::Sensor *analog_sensor1{nullptr};
+  sensor::Sensor *analog_sensor2{nullptr};
+  sensor::Sensor *analog_sensor3{nullptr};
+  sensor::Sensor *analog_sensor4{nullptr};
   sensor::Sensor *ewt_temperature{nullptr};
   sensor::Sensor *reheating_temperature{nullptr};
   sensor::Sensor *kitchen_hood_temperature{nullptr};
@@ -995,6 +1032,10 @@ public:
   void set_return_air_temperature(sensor::Sensor *return_air_temperature) { this->return_air_temperature = return_air_temperature; };
   void set_exhaust_air_temperature(sensor::Sensor *exhaust_air_temperature) { this->exhaust_air_temperature = exhaust_air_temperature; };
   void set_enthalpy_temperature(sensor::Sensor *enthalpy_temperature) { this->enthalpy_temperature = enthalpy_temperature; };
+  void set_analog_sensor1(sensor::Sensor *analog_sensor1) { this->analog_sensor1 = analog_sensor1; };
+  void set_analog_sensor2(sensor::Sensor *analog_sensor2) { this->analog_sensor2 = analog_sensor2; };
+  void set_analog_sensor3(sensor::Sensor *analog_sensor3) { this->analog_sensor3 = analog_sensor3; };
+  void set_analog_sensor4(sensor::Sensor *analog_sensor4) { this->analog_sensor4 = analog_sensor4; };
   void set_ewt_temperature(sensor::Sensor *ewt_temperature) { this->ewt_temperature = ewt_temperature; };
   void set_reheating_temperature(sensor::Sensor *reheating_temperature) { this->reheating_temperature = reheating_temperature; };
   void set_kitchen_hood_temperature(sensor::Sensor *kitchen_hood_temperature) { this->kitchen_hood_temperature = kitchen_hood_temperature; };

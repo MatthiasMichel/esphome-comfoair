@@ -258,3 +258,11 @@ comfoair:
     name: "RF high time long minutes"
   extractor_hood_switch_off_delay_minutes:
     name: "Extractor hood switch off delay minutes"
+  analog_sensor1:
+    name: "analog_sensor1"
+  analog_sensor2:
+    name: "analog_sensor2"
+  analog_sensor3:
+    name: "analog_sensor3"
+  analog_sensor4:
+    name: "analog_sensor4"

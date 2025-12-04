@@ -191,6 +191,14 @@ comfoair:
     name: "rf_high_time_long_minutes"
   extractor_hood_switch_off_delay_minutes:
     name: "extractor_hood_switch_off_delay_minutes"
+  analog_sensor1:
+    name: "analog_sensor1"
+  analog_sensor2:
+    name: "analog_sensor2"
+  analog_sensor3:
+    name: "analog_sensor3"
+  analog_sensor4:
+    name: "analog_sensor4"
 
 button:
   - platform: template

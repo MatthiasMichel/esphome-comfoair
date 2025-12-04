@@ -5,7 +5,7 @@ import esphome.config_validation as cv
 from esphome.components import binary_sensor, sensor, text_sensor, uart, climate, select
 from esphome.const import (CONF_ID, CONF_UART_ID, DEVICE_CLASS_CURRENT,
                            DEVICE_CLASS_EMPTY, DEVICE_CLASS_SPEED,
-                           DEVICE_CLASS_TEMPERATURE, DEVICE_CLASS_VOLUME,
+                           DEVICE_CLASS_TEMPERATURE, DEVICE_CLASS_VOLUME, DEVICE_CLASS_VOLTAGE,
                            STATE_CLASS_MEASUREMENT, UNIT_AMPERE, UNIT_CELSIUS,
                            UNIT_CUBIC_METER, UNIT_HOUR, UNIT_MINUTE,
                            UNIT_PERCENT, UNIT_REVOLUTIONS_PER_MINUTE, CONF_DISABLED_BY_DEFAULT)
@@ -98,6 +98,10 @@ CONF_FILTER_WARNING_WEEKS = "filter_warning_weeks"
 CONF_RF_HIGH_TIME_SHORT_MINUTES = "rf_high_time_short_minutes"
 CONF_RF_HIGH_TIME_LONG_MINUTES = "rf_high_time_long_minutes"
 CONF_EXTRACTOR_HOOD_SWITCH_OFF_DELAY_MINUTES = "extractor_hood_switch_off_delay_minutes"
+CONF_ANALOG_SENSOR1 = "analog_sensor1"
+CONF_ANALOG_SENSOR2 = "analog_sensor2"
+CONF_ANALOG_SENSOR3 = "analog_sensor3"
+CONF_ANALOG_SENSOR4 = "analog_sensor4"
 
 helper_comfoair = {
     "sensor": [
@@ -139,6 +143,10 @@ helper_comfoair = {
         CONF_RF_HIGH_TIME_SHORT_MINUTES,
         CONF_RF_HIGH_TIME_LONG_MINUTES,
         CONF_EXTRACTOR_HOOD_SWITCH_OFF_DELAY_MINUTES,
+        CONF_ANALOG_SENSOR1,
+        CONF_ANALOG_SENSOR2,
+        CONF_ANALOG_SENSOR3,
+        CONF_ANALOG_SENSOR4,
     ],
     "binary_sensor": [
         CONF_BYPASS_PRESENT,
@@ -418,6 +426,30 @@ comfoair_sensors_schemas = cv.Schema(
         cv.Optional(CONF_EXTRACTOR_HOOD_SWITCH_OFF_DELAY_MINUTES): sensor.sensor_schema(
             device_class=DEVICE_CLASS_EMPTY,
             accuracy_decimals=0,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ).extend(),
+        cv.Optional(CONF_ANALOG_SENSOR1): sensor.sensor_schema(
+            device_class=DEVICE_CLASS_VOLTAGE,
+            unit_of_measurement="V",
+            accuracy_decimals=2,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ).extend(),
+        cv.Optional(CONF_ANALOG_SENSOR2): sensor.sensor_schema(
+            device_class=DEVICE_CLASS_VOLTAGE,
+            unit_of_measurement="V",
+            accuracy_decimals=2,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ).extend(),
+        cv.Optional(CONF_ANALOG_SENSOR3): sensor.sensor_schema(
+            device_class=DEVICE_CLASS_VOLTAGE,
+            unit_of_measurement="V",
+            accuracy_decimals=2,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ).extend(),
+        cv.Optional(CONF_ANALOG_SENSOR4): sensor.sensor_schema(
+            device_class=DEVICE_CLASS_VOLTAGE,
+            unit_of_measurement="V",
+            accuracy_decimals=2,
             state_class=STATE_CLASS_MEASUREMENT,
         ).extend(),
 
