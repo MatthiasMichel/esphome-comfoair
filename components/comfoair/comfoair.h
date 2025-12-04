@@ -387,7 +387,8 @@ protected:
           bypass_valve_open->publish_state(msg[0] != 0);
         }
         if (preheating_state != nullptr) {
-          preheating_state->publish_state(msg[1] != 0);
+          //preheating_state->publish_state(msg[1] != 0);
+          //ESP_LOGD(TAG, "Preheating State RES_GET_VALVE_STATUS raw value: %d", msg[1]);
         }
         if (motor_current_bypass != nullptr) {
           motor_current_bypass->publish_state(msg[2]);
@@ -742,6 +743,7 @@ protected:
 
         if (preheating_state != nullptr) {
           preheating_state->publish_state(msg[2] != 0);
+          ESP_LOGD(TAG, "Preheating State RES_GET_PREHEATING_STATUS raw value: %d", msg[2]);
         }
 
         if (frost_protection_minutes != nullptr) {
