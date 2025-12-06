@@ -28,14 +28,26 @@ class ComfoAirSizeSelect : public select::Select {
   ComfoAirComponent *parent_{nullptr};
 };
 
+class ComfoAirRS232ModeSelect : public select::Select {
+ public:
+  void set_parent(ComfoAirComponent *parent) { this->parent_ = parent; }
+
+ protected:
+  void control(const std::string &value) override;
+
+ private:
+  ComfoAirComponent *parent_{nullptr};
+};
+
 class ComfoAirComponent : public climate::Climate, public PollingComponent, public uart::UARTDevice {
   friend class ComfoAirSizeSelect;
+  friend class ComfoAirRS232ModeSelect;
 public:
 
-  // Poll every 600ms
+  // Poll every 5 seconds
   ComfoAirComponent() :
   Climate(),
-  PollingComponent(600),
+  PollingComponent(5000),
   UARTDevice() { }
 
   /// Return the traits of this controller.
@@ -137,39 +149,40 @@ public:
         break;
       case -1:
         write_command_(CMD_GET_STATUS, nullptr, 0);
+        get_rs232_mode_();
         break;
       case 0:
-        get_fan_status_();
+        if (current_rs232_mode_ != 0x04) get_fan_status_();
         break;
       case 1:
-        get_valve_status_();
+        if (current_rs232_mode_ != 0x04) get_valve_status_();
         break;
       case 2:
-        get_sensor_data_();
+        if (current_rs232_mode_ != 0x04) get_sensor_data_();
         break;
       case 3:
-        get_ventilation_level_();
+        if (current_rs232_mode_ != 0x04) get_ventilation_level_();
         break;
       case 4:
-        get_temperatures_();
+        if (current_rs232_mode_ != 0x04) get_temperatures_();
         break;
       case 5:
-        get_error_status_();
+        if (current_rs232_mode_ != 0x04) get_error_status_();
         break;
       case 6:
-        get_bypass_control_status_();
+        if (current_rs232_mode_ != 0x04) get_bypass_control_status_();
         break;
       case 7:
-        get_operation_hours_();
+        if (current_rs232_mode_ != 0x04) get_operation_hours_();
         break;
       case 8:
-        get_preheating_status_();
+        if (current_rs232_mode_ != 0x04) get_preheating_status_();
         break;
       case 9:
-        get_time_delay_();
+        if (current_rs232_mode_ != 0x04) get_time_delay_();
         break;
       case 10:
-        get_analog_inputs_();
+        get_analog_inputs_();  // Always poll analog inputs
         break;
     }
 
@@ -216,6 +229,8 @@ public:
   void set_uart_component(uart::UARTComponent *parent) {set_uart_parent(parent);}
   bool set_unit_size(uint8_t raw_size);
   void set_size_select(ComfoAirSizeSelect *size_select);
+  bool set_rs232_mode(uint8_t mode);
+  void set_rs232_mode_select(ComfoAirRS232ModeSelect *rs232_mode_select);
 
 protected:
 
@@ -812,6 +827,11 @@ protected:
 
         break;
       }
+      case RES_SET_RS232_MODE: {
+        ESP_LOGD(TAG, "RS232 Mode response: 0x%02X", msg[0]);
+        publish_rs232_mode_entities_(msg[0]);
+        break;
+      }
     }
   }
 
@@ -903,6 +923,11 @@ protected:
     write_command_(CMD_GET_TIME_DELAY, nullptr, 0);
   }
 
+  void get_rs232_mode_() {
+    ESP_LOGD(TAG, "setting RS232 mode to PC log mode");
+    set_rs232_mode(0x04); // Set to PC log mode
+  }
+
   uint8_t get_uint8_t_(uint8_t start_index) const {
     return data_[COMMAND_LEN_HEAD + start_index];
   }
@@ -915,6 +940,10 @@ protected:
   const char *unit_size_text_label_(uint8_t raw_size) const;
   const char *unit_size_option_label_(uint8_t raw_size) const;
 
+  void publish_rs232_mode_entities_(uint8_t mode);
+  const char *rs232_mode_text_label_(uint8_t mode) const;
+  const char *rs232_mode_option_label_(uint8_t mode) const;
+
   uint8_t data_[30];
   uint8_t data_index_{0};
   int8_t update_counter_{-4};
@@ -923,6 +952,8 @@ protected:
   bool status_payload_valid_{false};
   uint8_t current_unit_size_{0};
   ComfoAirSizeSelect *size_select_{nullptr};
+  uint8_t current_rs232_mode_{0};
+  ComfoAirRS232ModeSelect *rs232_mode_select_{nullptr};
 
   uint8_t bootloader_version_[13]{0};
   uint8_t firmware_version_[13]{0};
@@ -935,6 +966,7 @@ public:
   text_sensor::TextSensor *filter_status{nullptr};
   text_sensor::TextSensor *frost_protection_level{nullptr};
   text_sensor::TextSensor *preheating_valve{nullptr};
+  text_sensor::TextSensor *rs232_mode{nullptr};
   sensor::Sensor *intake_fan_speed{nullptr};
   sensor::Sensor *exhaust_fan_speed{nullptr};
   sensor::Sensor *intake_fan_speed_rpm{nullptr};
@@ -1012,6 +1044,7 @@ public:
 
   void set_type(text_sensor::TextSensor *type) { this->type = type; };
   void set_size(text_sensor::TextSensor *size) { this->size = size; };
+  void set_rs232_mode_text_sensor(text_sensor::TextSensor *rs232_mode) { this->rs232_mode = rs232_mode; };
   void set_intake_fan_speed(sensor::Sensor *intake_fan_speed) { this->intake_fan_speed = intake_fan_speed; };
   void set_exhaust_fan_speed(sensor::Sensor *exhaust_fan_speed) { this->exhaust_fan_speed = exhaust_fan_speed; };
   void set_intake_fan_speed_rpm(sensor::Sensor *intake_fan_speed_rpm) { this->intake_fan_speed_rpm = intake_fan_speed_rpm; this->intake_fan_speed_rpm->set_accuracy_decimals(0); };
@@ -1194,6 +1227,113 @@ inline void ComfoAirSizeSelect::control(const std::string &value) {
 
   if (!this->parent_->set_unit_size(raw_size)) {
     if (const char *current_option = this->parent_->unit_size_option_label_(this->parent_->current_unit_size_)) {
+      this->publish_state(current_option);
+    }
+  }
+}
+
+inline const char *ComfoAirComponent::rs232_mode_text_label_(uint8_t mode) const {
+  switch (mode) {
+    case 0x00:
+      return "Deactivate";
+    case 0x01:
+      return "PC only";
+    case 0x02:
+      return "CC Ease only";
+    case 0x03:
+      return "PC master";
+    case 0x04:
+      return "PC log mode";
+    default:
+      return "Unknown";
+  }
+}
+
+inline const char *ComfoAirComponent::rs232_mode_option_label_(uint8_t mode) const {
+  switch (mode) {
+    case 0x00:
+      return "Deactivate";
+    case 0x01:
+      return "PC only";
+    case 0x03:
+      return "PC master";
+    case 0x04:
+      return "PC log mode";
+    default:
+      return nullptr;
+  }
+}
+
+inline void ComfoAirComponent::publish_rs232_mode_entities_(uint8_t mode) {
+  current_rs232_mode_ = mode;
+  if (rs232_mode != nullptr) {
+    rs232_mode->publish_state(rs232_mode_text_label_(mode));
+  }
+  if (rs232_mode_select_ != nullptr) {
+    if (const char *option = rs232_mode_option_label_(mode)) {
+      rs232_mode_select_->publish_state(option);
+    } else {
+      ESP_LOGW(TAG, "Unsupported RS232 mode value: 0x%02X", mode);
+    }
+  }
+}
+
+inline bool ComfoAirComponent::set_rs232_mode(uint8_t mode) {
+  if (mode != 0x00 && mode != 0x01 && mode != 0x03 && mode != 0x04) {
+    ESP_LOGW(TAG, "Ignoring invalid RS232 mode request: 0x%02X", mode);
+    return false;
+  }
+
+  ESP_LOGI(TAG, "Setting RS232 mode to %s", rs232_mode_text_label_(mode));
+  write_command_(CMD_SET_RS232_MODE, &mode, 1);
+
+  // Don't publish immediately - wait for device response
+  return true;
+}
+
+inline void ComfoAirComponent::set_rs232_mode_select(ComfoAirRS232ModeSelect *rs232_mode_select) {
+  this->rs232_mode_select_ = rs232_mode_select;
+  if (this->rs232_mode_select_ != nullptr) {
+    this->rs232_mode_select_->set_parent(this);
+    if (const char *option = this->rs232_mode_option_label_(this->current_rs232_mode_)) {
+      this->rs232_mode_select_->publish_state(option);
+    }
+  }
+}
+
+inline void ComfoAirRS232ModeSelect::control(const std::string &value) {
+  if (this->parent_ == nullptr) {
+    ESP_LOGW(TAG, "RS232 mode select has no parent component configured");
+    return;
+  }
+
+  auto index = this->index_of(value);
+  if (!index.has_value()) {
+    ESP_LOGW(TAG, "RS232 mode select received invalid option: %s", value.c_str());
+    return;
+  }
+
+  uint8_t mode = 0;
+  switch (index.value()) {
+    case 0:
+      mode = 0x00; // Deactivate
+      break;
+    case 1:
+      mode = 0x01; // PC only
+      break;
+    case 2:
+      mode = 0x03; // PC master
+      break;
+    case 3:
+      mode = 0x04; // PC log mode
+      break;
+    default:
+      ESP_LOGW(TAG, "RS232 mode select index %zu not supported", index.value());
+      return;
+  }
+
+  if (!this->parent_->set_rs232_mode(mode)) {
+    if (const char *current_option = this->parent_->rs232_mode_option_label_(this->parent_->current_rs232_mode_)) {
       this->publish_state(current_option);
     }
   }

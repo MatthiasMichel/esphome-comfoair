@@ -23,6 +23,8 @@ UNIT_WEEK = "weeks"
 CONF_TYPE = "type"
 CONF_SIZE = "size"
 CONF_SIZE_SELECT = "size_select"
+CONF_RS232_MODE = "rs232_mode"
+CONF_RS232_MODE_SELECT = "rs232_mode_select"
 CONF_INTAKE_FAN_SPEED = "intake_fan_speed"
 CONF_EXHAUST_FAN_SPEED = "exhaust_fan_speed"
 CONF_INTAKE_FAN_SPEED_RPM = "intake_fan_speed_rpm"
@@ -189,13 +191,16 @@ helper_comfoair = {
         CONF_FILTER_STATUS,
         CONF_FROST_PROTECTION_LEVEL,
         CONF_PREHEATING_VALVE,
+        CONF_RS232_MODE,
     ],
     "select": [
         CONF_SIZE_SELECT,
+        CONF_RS232_MODE_SELECT,
     ],
 }
 
 ComfoAirSizeSelect = comfoair_ns.class_("ComfoAirSizeSelect", select.Select)
+ComfoAirRS232ModeSelect = comfoair_ns.class_("ComfoAirRS232ModeSelect", select.Select)
 
 comfoair_sensors_schemas = cv.Schema(
     {
@@ -206,6 +211,10 @@ comfoair_sensors_schemas = cv.Schema(
         cv.Optional(CONF_PREHEATING_VALVE): text_sensor.text_sensor_schema(),
         cv.Optional(CONF_SIZE_SELECT, default={}): select.select_schema(
             ComfoAirSizeSelect
+        ).extend(),
+        cv.Optional(CONF_RS232_MODE): text_sensor.text_sensor_schema(),
+        cv.Optional(CONF_RS232_MODE_SELECT, default={}): select.select_schema(
+            ComfoAirRS232ModeSelect
         ).extend(),
 
         cv.Optional(CONF_INTAKE_FAN_SPEED): sensor.sensor_schema(
@@ -585,7 +594,14 @@ def to_code(config):
             elif k == "text_sensor":
                 sens = yield text_sensor.new_text_sensor(config[v])
             elif k == "select":
-                sens = yield select.new_select(config[v], options=["Large", "Small"])
+                if v == CONF_SIZE_SELECT:
+                    sens = yield select.new_select(config[v], options=["Large", "Small"])
+                elif v == CONF_RS232_MODE_SELECT:
+                    sens = yield select.new_select(config[v], options=["Deactivate", "PC only", "PC master", "PC log mode"])
             if sens is not None:
-                func = getattr(var, "set_" + v)
+                # Special handling for rs232_mode text sensor to avoid name conflict with set_rs232_mode(uint8_t)
+                if k == "text_sensor" and v == CONF_RS232_MODE:
+                    func = getattr(var, "set_rs232_mode_text_sensor")
+                else:
+                    func = getattr(var, "set_" + v)
                 cg.add(func(sens))
