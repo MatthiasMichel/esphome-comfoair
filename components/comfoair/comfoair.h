@@ -131,55 +131,7 @@ namespace esphome
 
       void update() override
       {
-        switch (update_counter_)
-        {
-        case -4:
-          write_command_(CMD_GET_BOOTLOADER_VERSION, nullptr, 0);
-          break;
-        case -3:
-          write_command_(CMD_GET_FIRMWARE_VERSION, nullptr, 0);
-          break;
-        case -2:
-          write_command_(CMD_GET_CONNECTOR_BOARD_VERSION, nullptr, 0);
-          break;
-        case -1:
-          write_command_(CMD_GET_STATUS, nullptr, 0);
-          break;
-        case 0:
-          get_fan_status_();
-          break;
-        case 1:
-          get_valve_status_();
-          break;
-        case 2:
-          get_sensor_data_();
-          break;
-        case 3:
-          get_ventilation_level_();
-          break;
-        case 4:
-          get_temperatures_();
-          break;
-        case 5:
-          get_error_status_();
-          break;
-        case 6:
-          get_bypass_control_status_();
-          break;
-        case 7:
-          get_operation_hours_();
-          break;
-        case 8:
-          get_preheating_status_();
-          break;
-        case 9:
-          get_time_delay_();
-          break;
-        }
-
-        update_counter_++;
-        if (update_counter_ > num_update_counter_elements_)
-          update_counter_ = 0;
+  
       }
 
       void loop() override
