@@ -22,6 +22,8 @@ static const float COMFOAIR_SUPPORTED_TEMP_STEP = 0.5f;
 
 class ComfoAirComponent : public climate::Climate, public api::CustomAPIDevice, public PollingComponent, public uart::UARTDevice {
 public:
+  using climate::Climate::set_name;
+
   // Poll every 600ms
   ComfoAirComponent() :
   Climate(),
