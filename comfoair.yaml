@@ -1,14 +1,17 @@
 esphome:
-  name: comfoair
-  platform: ESP8266
-  board: esp01_1m
-  includes:
-    - comfoair.h
+  name: kc868-a6
+
+esp32:
+  variant: esp32
+  framework:
+    type: esp-idf
 
 external_components:
   - source:
-      type: git
-      url: https://github.com/wichers/esphome-comfoair
+      #type: git
+      #url: https://github.com/wichers/esphome-comfoair
+      type: local
+      path: components
     components: [comfoair]
 
 wifi:
@@ -20,8 +23,6 @@ logger:
   baud_rate: 0
 
 # Enable Home Assistant API
-api:
-  password: 'set-an-api-password-here'
 
 ota:
   platform: esphome
@@ -39,6 +40,11 @@ comfoair:
   name: "ComfoAir 350"
   id: "comfoair_climate"
   uart_id: uart_bus
+
+  # Smart Polling aktivieren
+  smart_polling: true
+  bus_idle_timeout: 1000
+  strict_checksum: false
   type:
     name: "type"
   size:

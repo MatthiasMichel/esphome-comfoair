@@ -9,6 +9,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/select/select.h"
 #include "esphome/components/text_sensor/text_sensor.h"
+#include "esphome/components/text_sensor/text_sensor.h"
 #include "registers.h"
 
 namespace esphome
@@ -37,9 +38,11 @@ namespace esphome
       friend class ComfoAirSizeSelect;
 
     public:
-      // Poll every 600ms
+      // ========== SMART POLLING: Konfigurierbares Intervall ==========
+      // VORHER: PollingComponent(600)  - 600ms fest
+      // NACHHER: PollingComponent(60000) - 60s default, konfigurierbar
       ComfoAirComponent() : Climate(),
-                            PollingComponent(600),
+                            PollingComponent(60000),  // ← GEÄNDERT: 60 Sekunden
                             UARTDevice() {}
 
       /// Return the traits of this controller.
@@ -110,7 +113,13 @@ namespace esphome
       {
         uint8_t *p;
         ESP_LOGCONFIG(TAG, "ComfoAir:");
-        // LOG_UPDATE_INTERVAL(this);
+
+        // ========== SMART POLLING: Konfiguration ausgeben ==========
+        ESP_LOGCONFIG(TAG, "  Smart Polling: %s", smart_polling_enabled_ ? "ENABLED" : "DISABLED");
+        ESP_LOGCONFIG(TAG, "  Bus Idle Timeout: %u ms", bus_idle_timeout_ms_);
+        ESP_LOGCONFIG(TAG, "  Poll Interval: %u ms", this->get_update_interval());
+        ESP_LOGCONFIG(TAG, "  Strict Checksum: %s", strict_checksum_ ? "YES" : "NO");
+
         p = bootloader_version_;
         ESP_LOGCONFIG(TAG, "  Bootloader %.10s v%0d.%02d b%2d", p + 3, *p, *(p + 1), *(p + 2));
         p = firmware_version_;
@@ -131,6 +140,25 @@ namespace esphome
 
       void update() override
       {
+        // ========== SMART POLLING: Bus-Idle-Detection ==========
+        if (smart_polling_enabled_)
+        {
+          uint32_t now = millis();
+          uint32_t idle_time = now - last_rx_time_;
+
+          // Bus ist aktiv - Polling überspringen
+          if (idle_time < bus_idle_timeout_ms_)
+          {
+            tx_polls_skipped_++;
+            ESP_LOGV(TAG, "Bus active (idle only %u ms), skipping poll", idle_time);
+            return;  // ← Kein Polling!
+          }
+
+          // Bus ist idle - Polling erlaubt
+          ESP_LOGD(TAG, "Bus idle for %u ms, starting poll", idle_time);
+        }
+
+        // ========== Normales Polling (wie vorher) ==========
         switch (update_counter_)
         {
         case -4:
@@ -180,17 +208,25 @@ namespace esphome
         update_counter_++;
         if (update_counter_ > num_update_counter_elements_)
           update_counter_ = 0;
+
+        // ========== SMART POLLING: Statistik ==========
+        tx_polls_sent_++;
       }
 
       void loop() override
       {
+        // ========== SMART POLLING: RX-Aktivität tracken ==========
+        uint32_t now = millis();
+
         while (available() != 0)
         {
+          last_rx_time_ = now;  // ← NEU: Letzte RX-Zeit merken
+          rx_bytes_count_++;    // ← NEU: Bytes zählen
+
           read_byte(&data_[data_index_]);
           auto check = check_byte_();
           if (!check.has_value())
           {
-
             // finished
             if (data_[COMMAND_ID_ACK] != COMMAND_ACK)
             {
@@ -209,6 +245,13 @@ namespace esphome
             // next byte
             data_index_++;
           }
+        }
+
+        // ========== SMART POLLING: Statistik ausgeben (alle 60s) ==========
+        if (now - last_stats_time_ > 60000)
+        {
+          print_statistics_();
+          last_stats_time_ = now;
         }
       }
 
@@ -235,6 +278,11 @@ namespace esphome
       void set_uart_component(uart::UARTComponent *parent) { set_uart_parent(parent); }
       bool set_unit_size(uint8_t raw_size);
       void set_size_select(ComfoAirSizeSelect *size_select);
+
+      // ========== SMART POLLING: Neue Setter ==========
+      void set_smart_polling(bool enabled) { smart_polling_enabled_ = enabled; }
+      void set_bus_idle_timeout(uint32_t timeout_ms) { bus_idle_timeout_ms_ = timeout_ms; }
+      void set_strict_checksum(bool strict) { strict_checksum_ = strict; }
 
     protected:
       void set_level_(int level)
@@ -366,14 +414,26 @@ namespace esphome
 
         if (index == COMMAND_LEN_HEAD + data_length)
         {
-          // checksum is without checksum bytes
+          // ========== SMART POLLING: Tolerante Checksum-Prüfung ==========
           uint8_t checksum = comfoair_checksum_(
               data_[COMMAND_IDX_MSG_ID], data_length, data_ + COMMAND_LEN_HEAD);
+
           if (checksum != byte)
           {
-            // ESP_LOGW(TAG, "%02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X", data_[0], data_[1], data_[2], data_[3], data_[4], data_[5], data_[6], data_[7], data_[8], data_[9], data_[10]);
-            ESP_LOGW(TAG, "ComfoAir Checksum doesn't match: 0x%02X!=0x%02X", byte, checksum);
-            return false;
+            if (strict_checksum_)
+            {
+              // Strikt: Paket verwerfen
+              ESP_LOGW(TAG, "ComfoAir Checksum doesn't match: 0x%02X!=0x%02X", byte, checksum);
+              rx_packets_invalid_++;
+              return false;
+            }
+            else
+            {
+              // Tolerant: Nur loggen, weitermachen
+              ESP_LOGV(TAG, "Checksum mismatch (tolerant mode): 0x%02X!=0x%02X", byte, checksum);
+              rx_packets_checksum_mismatch_++;
+              // Nicht returnen - Paket trotzdem verarbeiten
+            }
           }
           return true;
         }
@@ -398,6 +458,9 @@ namespace esphome
       {
         status_clear_warning();
         uint8_t *msg = &data_[COMMAND_LEN_HEAD];
+
+        // ========== SMART POLLING: Gültige Pakete zählen ==========
+        rx_packets_valid_++;
 
         switch (data_[COMMAND_IDX_MSG_ID])
         {
@@ -1045,6 +1108,28 @@ namespace esphome
       const char *unit_size_text_label_(uint8_t raw_size) const;
       const char *unit_size_option_label_(uint8_t raw_size) const;
 
+      // ========== SMART POLLING: Statistik ausgeben ==========
+      void print_statistics_()
+      {
+        uint32_t now = millis();
+        uint32_t bus_idle = now - last_rx_time_;
+
+        ESP_LOGI(TAG, "=== Smart Polling Statistics (last 60s) ===");
+        ESP_LOGI(TAG, "RX: %u bytes, %u valid packets, %u invalid packets, %u checksum mismatches",
+                 rx_bytes_count_, rx_packets_valid_, rx_packets_invalid_, rx_packets_checksum_mismatch_);
+        ESP_LOGI(TAG, "TX: %u polls sent, %u polls skipped (bus active)",
+                 tx_polls_sent_, tx_polls_skipped_);
+        ESP_LOGI(TAG, "Bus idle for: %u ms", bus_idle);
+
+        // Counters zurücksetzen
+        rx_bytes_count_ = 0;
+        rx_packets_valid_ = 0;
+        rx_packets_invalid_ = 0;
+        rx_packets_checksum_mismatch_ = 0;
+        tx_polls_sent_ = 0;
+        tx_polls_skipped_ = 0;
+      }
+
       uint8_t data_[30];
       uint8_t data_index_{0};
       int8_t update_counter_{-4};
@@ -1058,6 +1143,21 @@ namespace esphome
       uint8_t firmware_version_[13]{0};
       uint8_t connector_board_version_[14]{0};
       const char *name{0};
+
+      // ========== SMART POLLING: Neue Member-Variablen ==========
+      bool smart_polling_enabled_{false};
+      uint32_t bus_idle_timeout_ms_{1000};  // 1 Sekunde default
+      bool strict_checksum_{false};         // Tolerant per default
+
+      mutable uint32_t last_rx_time_{0};
+      mutable uint32_t last_stats_time_{0};
+
+      mutable uint32_t rx_bytes_count_{0};
+      mutable uint32_t rx_packets_valid_{0};
+      mutable uint32_t rx_packets_invalid_{0};
+      mutable uint32_t rx_packets_checksum_mismatch_{0};
+      mutable uint32_t tx_polls_sent_{0};
+      mutable uint32_t tx_polls_skipped_{0};
 
     public:
       text_sensor::TextSensor *type{nullptr};

@@ -99,6 +99,11 @@ CONF_RF_HIGH_TIME_SHORT_MINUTES = "rf_high_time_short_minutes"
 CONF_RF_HIGH_TIME_LONG_MINUTES = "rf_high_time_long_minutes"
 CONF_EXTRACTOR_HOOD_SWITCH_OFF_DELAY_MINUTES = "extractor_hood_switch_off_delay_minutes"
 
+# Smart Polling Configuration
+CONF_SMART_POLLING = "smart_polling"
+CONF_BUS_IDLE_TIMEOUT = "bus_idle_timeout"
+CONF_STRICT_CHECKSUM = "strict_checksum"
+
 helper_comfoair = {
     "sensor": [
         CONF_INTAKE_FAN_SPEED,
@@ -526,6 +531,10 @@ CONFIG_SCHEMA = (
   .extend(
     {
       cv.Required(REQUIRED_KEY_NAME): cv.string,
+      # ========== SMART POLLING: Configuration Options ==========
+      cv.Optional(CONF_SMART_POLLING, default=False): cv.boolean,
+      cv.Optional(CONF_BUS_IDLE_TIMEOUT, default=1000): cv.positive_int,
+      cv.Optional(CONF_STRICT_CHECKSUM, default=False): cv.boolean,
     }
   )
   .extend(uart.UART_DEVICE_SCHEMA)
@@ -541,6 +550,15 @@ def to_code(config):
     cg.add(var.set_name(config[REQUIRED_KEY_NAME]))
     paren = yield cg.get_variable(config[CONF_UART_ID])
     cg.add(var.set_uart_component(paren))
+
+    # ========== SMART POLLING: Apply Configuration ==========
+    if CONF_SMART_POLLING in config:
+        cg.add(var.set_smart_polling(config[CONF_SMART_POLLING]))
+    if CONF_BUS_IDLE_TIMEOUT in config:
+        cg.add(var.set_bus_idle_timeout(config[CONF_BUS_IDLE_TIMEOUT]))
+    if CONF_STRICT_CHECKSUM in config:
+        cg.add(var.set_strict_checksum(config[CONF_STRICT_CHECKSUM]))
+
     for k, values in helper_comfoair.items():
         for v in values:
             if not v in config:
