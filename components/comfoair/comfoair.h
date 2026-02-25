@@ -42,7 +42,7 @@ namespace esphome
       // VORHER: PollingComponent(600)  - 600ms fest
       // NACHHER: PollingComponent(60000) - 60s default, konfigurierbar
       ComfoAirComponent() : Climate(),
-                            PollingComponent(60000),  // ← GEÄNDERT: 60 Sekunden
+                            PollingComponent(5000),  // ← GEÄNDERT: 5 Sekunden
                             UARTDevice() {}
 
       /// Return the traits of this controller.
